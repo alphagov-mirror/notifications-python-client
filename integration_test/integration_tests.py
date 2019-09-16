@@ -1,3 +1,6 @@
+from io import BytesIO
+import traceback
+import time
 import os
 import uuid
 
@@ -105,6 +108,26 @@ def get_notification_by_id(python_client, id, notification_type):
         validate(response, get_notification_response)
     else:
         raise KeyError("notification type should be email|sms")
+
+
+def get_letter_pdf(python_client, id):
+    # this might fail if the pdf file hasn't been created/virus scanned yet, so check a few times.
+    count = 0
+    while True:
+        try:
+            response = python_client.get_letter_pdf(id)
+            break
+        except Exception:
+            count += 1
+            print('notification id {}, attempt number #{}'.format(id, count))
+            traceback.print_exc()
+            if count > 6:  # total time slept at this point is 21 seconds
+                raise
+            else:
+                time.sleep(count)
+
+    assert type(response) == BytesIO
+    assert len(response.read()) != 0
 
 
 def get_received_text_messages():
@@ -230,6 +253,9 @@ def test_integration():
     get_all_templates(client)
     get_all_templates_for_type(client, EMAIL_TYPE)
     get_all_templates_for_type(client, SMS_TYPE)
+
+    get_letter_pdf(client, letter_id)
+    get_letter_pdf(client, precompiled_letter_id)
 
     if (os.environ['INBOUND_SMS_QUERY_KEY']):
         get_received_text_messages()
